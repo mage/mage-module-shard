@@ -53,8 +53,8 @@
   },
   "homepage": "https://github.com/mage/mage-module-shard#readme",
   "devDependencies": {
-    "@types/mocha": "2.2.41",
-    "@types/node": "7.0.21",
+    "class-transformer": "0.1.7",
+    "es6-promisify": "5.0.0",
     "git-message": "1.0.3",
     "git-signed": "0.0.2",
     "jscpd": "0.6.11",
@@ -65,9 +65,15 @@
     "nyc": "10.3.2",
     "ts-node": "3.0.4",
     "tslint": "5.3.2",
-    "typescript": "2.3.3"
+    "typescript": "2.3.3",
+    "zmq": "2.15.3"
   },
   "dependencies": {
-    "ringpop": "10.20.0"
+    "@types/mocha": "2.2.41",
+    "@types/node": "7.0.21",
+    "is-function-x": "1.4.0",
+    "md5": "2.2.1",
+    "serialize-error": "2.1.0",
+    "shortid": "2.2.8"
   }
 }

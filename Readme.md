@@ -1,17 +1,7 @@
 mage-module-shard
 =================
 
-Module to help you implement modules that act as shards
-within a MAGE cluster; that is, requests to those modules 
-will always be routed to the same module instance within
-a cluster, given a given shard key, sharding method, and topology.
-
-This module takes care of:
-
-  1. Routing requests within a MAGE cluster
-  2. Re-balancing events, when scaling up or down the cluster; that is,
-     transfering your in-memory objects whenever adding or 
-     removing MAGE server nodes
+Module to help you create distributed MAGE modules; that
 
 Installation
 -------------
@@ -23,69 +13,56 @@ npm install --save mage-module-shard
 Usage
 -----
 
-### Default sharding behavior
+Please take note the following requirments:
 
+  1. All forwardable methods **must** be `async` functions
+  2. Methods on objects will **not** be set on the remote node; you
+     should stick to sending only data objects
+ 
 > lib/modules/sharded/index.ts
 
 ```typescript
 import {
-  Shard,
-  AbstractShardedModule
+  AbstractShardedModule,
+  IShard
 } from 'mage-module-shard'
 
 class ShardedModule extends AbstractShardedModule {
-  @Shard()
-  public someMethod(state: mage.core.IState) {
-    // Your code goes here
-  }
+    public async willForwardSomeCalls(state: mage.core.IState) {
+      const shard = this.createShard(state.actorId)
+      const val = await shard.willRunRemotely(state)
 
-  public notSharded(state: mage.core.IState) {
-    // This will always be executed locally
-  }
+      return { shard, val }
+    }
+
+    public async forwardUsingShard(state: mage.core.IState, shardData: IShard) {
+      const shard = this.getShard(shardData)
+      const val = await shard.willRunRemotely(state)
+
+      return { shard, val }
+    }
+
+    public async willRunRemotely(state: mage.core.IState) {
+      return 1
+    }
 }
 
 export default new ShardedModule()
 ```
 
-By default, methods decorated with the `@Shard` decorator
-will be sharded based on the state's actorId value.
+This module works as follow:
 
-### Custom sharding behavior
+  1. Call `this.getShard(string)` to receive a proxy instance; all API calls
+     made on this proxy will always be forwarded to the same server
+  2. **Keep this proxy around**: Normally, you will pass this to your game client(s)
+  3. **Reuse the proxy data in future calls**: Game clients will send you back this data,
+    and you will use it to route other related calls to the same MAGE node
 
-> lib/modules/anotherSharded/index.ts
+Todo
+----
 
-```typescript
-import {
-  Shard,
-  AbstractShardedModule
-} from 'mage-module-shard'
-
-/**
- * Custom sharding logic
- */
-function byGameId(state: mage.core.IState, gameId: string) {
-  // tbd
-}
-
-class AnotherShardedModule extends AbstractShardedModule {
-  @Shard(byGameId)
-  public someMethod(state: mage.core.IState, gameId: string) {
-    // Your code goes here
-  }
-}
-
-export default new AnotherShardedModule()
-```
-
-Here, we can see an example of a custom sharding logic being implemented.
-The `@Shard()` decorator can take a shard function as a parameter; this shard
-function must have the same method signature as the module method it 
-will decorate (you may ignore trailing parameters).
-
-### Scaling & rebalancing
-
-```typescript
-```
+  - [ ] limit: only let a limited number of nodes run this module
+  - [ ] broadcast: send a call to all nodes in the cluster and receive an array of responses
 
 License
 -------
