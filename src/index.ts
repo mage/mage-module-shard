@@ -400,9 +400,15 @@ export default abstract class AbstractShardedModule {
 
     service.on('up', (node: mage.core.IServiceNode) => this.registerNodeAddress(node))
     service.on('down', (node: mage.core.IServiceNode) => this.unregisterNodeAddress(node))
-    service.discover()
 
-    service.announce(8080, [(<any> mmrpNode).clusterId, (<any> mmrpNode).identity], callback)
+    service.announce(8080, [(<any> mmrpNode).clusterId, (<any> mmrpNode).identity], (error?: Error) => {
+      if (error) {
+        return callback(error)
+      }
+
+      service.discover()
+      callback()
+    })
   }
 
   /**
@@ -591,7 +597,7 @@ export default abstract class AbstractShardedModule {
       return
     }
 
-    this.logger.notice.data(node).log('Unegistering new node')
+    this.logger.notice.data(node).log('Unegistering node')
 
     this.addressHashes.splice(index, 1)
 
