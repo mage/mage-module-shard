@@ -541,6 +541,10 @@ export default abstract class AbstractShardedModule {
    * on the subsystem, can possibly be very large (Linux's default is 32768, but is
    * configurable through /proc/sys/kernel/pid_max), we use a modulo operator to limit
    * how big the port can be.
+   *
+   * 2017/07 (stelcheck): This is a huge hack, and I am aware this may break under specific
+   * circumstances; namely, if other external services are announced on the same host,
+   * on the same port. If you believe you are hitting this case, please let me know.
    */
   /* istanbul ignore next */
   /* tslint:disable-next-line:prefer-function-over-method */
