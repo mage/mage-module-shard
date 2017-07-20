@@ -1,5 +1,11 @@
 import AbstractShardedModule from '../src'
 
+/**
+ * FakeModule
+ *
+ * We simply create an instance so that we may
+ * be able to access getShardId directly.
+ */
 class FakeModule extends AbstractShardedModule {
   public test(key: string) {
     return this.getShardId(key).id
