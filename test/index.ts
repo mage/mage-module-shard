@@ -253,6 +253,10 @@ describe('mage-module-shard', function () {
     it('in operator', function () {
       assert('id' in shard)
     })
+
+    it ('inspect (for util.inspect, REPL, etc)', function () {
+      assert.deepEqual(shard.inspect(), { id: shard.id })
+    })
   })
 
   /**

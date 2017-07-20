@@ -436,6 +436,12 @@ export default abstract class AbstractShardedModule {
           return id
         }
 
+        if (name === 'inspect') {
+          return function () {
+            return { id }
+          }
+        }
+
         // Only functions are made available by the proxy
         const val = (<any> target)[name]
 
