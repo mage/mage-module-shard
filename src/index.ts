@@ -336,7 +336,6 @@ export default abstract class AbstractShardedModule {
 
     this.name = name
     this.hashingAlgorithm = hashingAlgorithm
-    this.logger = mage.logger.context('ShardedModule', name)
     this.REQUEST_EVENT_NAME = `sharded.${name}.request`
     this.RESPONSE_EVENT_NAME = `sharded.${name}.response`
 
@@ -352,6 +351,8 @@ export default abstract class AbstractShardedModule {
    * @memberof AbstractShardedModule
    */
   public async setup(_state: mage.core.IState, callback: (error?: Error) => void) {
+    this.logger = mage.logger.context('ShardedModule', this.name)
+
     const {
       name,
       REQUEST_EVENT_NAME,
@@ -491,18 +492,18 @@ export default abstract class AbstractShardedModule {
    *
    * @param {string} shardKey
    */
-  private getShardId(shardKey: string) {
+  protected getShardId(shardKey: string) {
     const hash: Buffer = (<any> this).hash(shardKey, 'buffer')
-    const pos = hash.reduce((v, c) => {
-      if (c % 2 === 0) {
-        c = c / 2
-      }
+    let sum = 0
 
-      return c + v
-    }, 0) % this.clusterSize
+    // Fastest way I could find to walk through the Buffer
+    // See: https://stackoverflow.com/a/3762735/262831
+    for (let i = hash.length; i--; ) {
+      sum += hash[i]
+    }
 
     return {
-      id: this.addressHashes[pos]
+      id: this.addressHashes[sum % this.clusterSize]
     }
   }
 
