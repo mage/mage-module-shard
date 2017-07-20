@@ -1,7 +1,7 @@
 mage-module-shard
 =================
 
-Module to help you create distributed MAGE modules; that
+Module to help you create distributed MAGE modules. 
 
 Installation
 -------------
