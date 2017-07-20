@@ -403,7 +403,8 @@ export default abstract class AbstractShardedModule {
     service.on('up', (node: mage.core.IServiceNode) => this.registerNodeAddress(node))
     service.on('down', (node: mage.core.IServiceNode) => this.unregisterNodeAddress(node))
 
-    service.announce(8080, [(<any> mmrpNode).clusterId, (<any> mmrpNode).identity], (error?: Error) => {
+
+    service.announce(this.getPseudoPort(), [(<any> mmrpNode).clusterId, (<any> mmrpNode).identity], (error?: Error) => {
       /* istanbul ignore if */
       if (error) {
         return callback(error)
@@ -526,6 +527,25 @@ export default abstract class AbstractShardedModule {
   /* tslint:disable-next-line:prefer-function-over-method */
   private getServiceDiscovery() {
     return serviceDiscovery
+  }
+
+  /**
+   * Make up a fake port
+   *
+   * The current serviceDiscovery will consider an announced service to
+   * be the same if the hostnames and ports are the same; this is an issue in
+   * our case, since each workers on a single server will be announced,
+   * and one might want to run more than one MAGE instance on a single server.
+   *
+   * To palliate to this issue, we pretend the PID is a port. Since PID's, depending
+   * on the subsystem, can possibly be very large (Linux's default is 32768, but is
+   * configurable through /proc/sys/kernel/pid_max), we use a modulo operator to limit
+   * how big the port can be.
+   */
+  /* istanbul ignore next */
+  /* tslint:disable-next-line:prefer-function-over-method */
+  private getPseudoPort() {
+    return (process.pid % 65535) + 1
   }
 
   /**

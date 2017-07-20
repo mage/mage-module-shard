@@ -179,16 +179,25 @@ export async function createModuleInstances(count: number) {
     const untypedModule = <any> module
     const mmrpNode = network.clients[i]
 
+    // Manually inject the MMRP node for this module instance
     untypedModule.getMmrpNode = function () {
       return mmrpNode
     }
 
+    // Inject our fake service discovery system
     untypedModule.getServiceDiscovery = function () {
       return {
         createService() {
           return serviceDiscovery
         }
       }
+    }
+
+    // All tests will be running on the same PID; since
+    // the PID is used to generate a pseudo-port, we need
+    // to mock that as well
+    untypedModule.getPseudoPort = function () {
+      return i
     }
 
     // Schedule garbage collection to happen faster;
