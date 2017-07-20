@@ -1,4 +1,5 @@
 import * as cluster from 'cluster'
+import * as crypto from 'crypto'
 import * as mage from 'mage'
 
 const {
@@ -7,7 +8,6 @@ const {
 } = mage.core
 
 const isFunction = require('is-function-x')
-const md5 = require('md5')
 const errorToObject = require('serialize-error')
 const shortid = require('shortid')
 
@@ -181,10 +181,6 @@ export interface IShard {
   id: string
 }
 
-function getAddressHash(address: string[]): string {
-  return md5(address.join(''))
-}
-
 function serializeError(data: any) {
   return JSON.stringify(errorToObject(data))
 }
@@ -212,6 +208,11 @@ export default abstract class AbstractShardedModule {
    * @memberof AbstractShardedModule
    */
   public name: string
+
+  /**
+   * Hashing algorithm to for sharding
+   */
+  private hashingAlgorithm: string = 'md5'
 
   /**
    * Module logger instance
@@ -328,12 +329,13 @@ export default abstract class AbstractShardedModule {
    * @param {string} [name]
    * @memberof AbstractShardedModule
    */
-  constructor(name?: string, gcTimeoutTime: number = 5 * 1000) {
+  constructor(name?: string, hashingAlgorithm: string = 'md5', gcTimeoutTime: number = 5 * 1000) {
     if (!name) {
       name = this.getClassName()
     }
 
     this.name = name
+    this.hashingAlgorithm = hashingAlgorithm
     this.logger = mage.logger.context('ShardedModule', name)
     this.REQUEST_EVENT_NAME = `sharded.${name}.request`
     this.RESPONSE_EVENT_NAME = `sharded.${name}.response`
@@ -402,6 +404,7 @@ export default abstract class AbstractShardedModule {
     service.on('down', (node: mage.core.IServiceNode) => this.unregisterNodeAddress(node))
 
     service.announce(8080, [(<any> mmrpNode).clusterId, (<any> mmrpNode).identity], (error?: Error) => {
+      /* istanbul ignore if */
       if (error) {
         return callback(error)
       }
@@ -482,12 +485,29 @@ export default abstract class AbstractShardedModule {
    * @param {string} shardKey
    */
   private getShardId(shardKey: string) {
-    const md5sum = md5(shardKey)
-    const pos = parseInt(md5sum, 16) % this.clusterSize
+    const hash: Buffer = (<any> this).hash(shardKey, 'buffer')
+    const pos = hash.reduce((v, c) => {
+      if (c % 2 === 0) {
+        c = c / 2
+      }
+
+      return c + v
+    }, 0) % this.clusterSize
 
     return {
       id: this.addressHashes[pos]
     }
+  }
+
+  /**
+   * Hash a string using the configured algorithm
+   *
+   * Inspired by https://github.com/3rd-Eden/node-hashring/blob/master/index.js#L13
+   *
+   * @param str
+   */
+  private hash(str: string, encoding: string = 'hex') {
+    return crypto.createHash(this.hashingAlgorithm).update(str).digest(<any> encoding)
   }
 
   /* istanbul ignore next */
@@ -559,7 +579,7 @@ export default abstract class AbstractShardedModule {
    */
   private registerNodeAddress(node: mage.core.IServiceNode) {
     const address: string[] = node.data
-    const hash = getAddressHash(address)
+    const hash = this.hash(address.join(''))
 
     if (this.clusterAddressMap[hash]) {
       this.logger.warning.data(node).log('Tried to re-register a known node')
@@ -587,7 +607,7 @@ export default abstract class AbstractShardedModule {
    */
   private unregisterNodeAddress(node: mage.core.IServiceNode) {
     const address: string[] = node.data
-    const hash = getAddressHash(address)
+    const hash = this.hash(address.join(''))
 
     // Remove hash from list of accessible address
     const index = this.addressHashes.indexOf(hash)
