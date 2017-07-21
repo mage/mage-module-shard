@@ -412,11 +412,29 @@ export default abstract class AbstractShardedModule {
       }
 
       service.discover()
+
       callback()
     })
   }
 
   /**
+   * Teardown method called by MAGE during shutdown
+   *
+   * @param {mage.core.IState} _state
+   * @param {(error?: Error) => void} callback
+   * @memberof AbstractShardedModule
+   */
+  /* istanbul ignore next */
+  public teardown(_state: mage.core.IState, callback: (error?: Error) => void) {
+    if (this.service) {
+      (<any> this.service).close()
+    }
+
+    callback()
+  }
+
+  /**
+   * Retrieve a shard using a deserialized shard instance (IShard)
    *
    * @param {IShard} shard
    */

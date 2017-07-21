@@ -65,6 +65,10 @@ export class TestDiscovery extends events.EventEmitter {
       this.emit('up', service)
     }
   }
+
+  public close () {
+    console.log('closing service discovery')
+  }
 }
 
 /**
