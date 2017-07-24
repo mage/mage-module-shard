@@ -1,5 +1,8 @@
 /* tslint:disable:no-console */
 
+import * as mage from 'mage'
+mage.core.logger.disableChannel('warning')
+
 import * as assert from 'assert'
 import {
   ShardedModule,
@@ -26,10 +29,15 @@ describe('mage-module-shard', function () {
     return modules[0]
   }
 
-  async function createShard(name: string, numberOfNodes: number = 1): Promise<ShardedModule> {
-    const mod = await getModule(numberOfNodes)
+  async function createShard(numberOfNodes: number = 5): Promise<ShardedModule> {
+    await getModule(numberOfNodes)
 
-    return mod.createShard(name)
+    const mod = modules[0]
+    const remoteModule = modules[numberOfNodes - 1]
+
+    // Get shard data for node3, create a proxy on node1
+    const shardData = remoteModule.getLocalShard()
+    return mod.getShard(shardData)
   }
 
 
@@ -78,12 +86,26 @@ describe('mage-module-shard', function () {
   })
 
   /**
+   * Get local shard
+   */
+  describe('getLocalShard', function () {
+    it('Shard contains a hash representing the local server instance', async function () {
+      const mod = await getModule()
+      const shard = mod.getLocalShard()
+
+      assert.equal(shard.id, mod.localNodeHash)
+    })
+  })
+
+  /**
    * Create shards, and use them to make remote calls
    */
   describe('createShard', function () {
     describe('Can make a remote call', function () {
       it('mmrp send errors are thrown', async function () {
-        const mod = await getModule()
+        ({ modules, serviceDiscovery } = await createModuleInstances(5))
+
+        const mod = modules[0]
         const mmrpNode = mod.getMmrpNode()
 
         mod.getMmrpNode = function () {
@@ -94,7 +116,10 @@ describe('mage-module-shard', function () {
           })
         }
 
-        const shard = mod.createShard('test')
+        // Get shard data for node3, create a proxy on node1
+        const shardData = modules[2].getLocalShard()
+        const shard = mod.getShard(shardData)
+
         await expectError('whoops mmrp error', () => shard.methodWithNoArguments())
       })
 
@@ -103,9 +128,11 @@ describe('mage-module-shard', function () {
 
         // Calling from node1
         const mod = modules[0]
+        const remoteModule = modules[4]
 
-        // Should be on node1
-        const shard = mod.createShard('test')
+        // Get shard data for remote node, create a proxy on node1
+        const shardData = remoteModule.getLocalShard()
+        const shard = mod.getShard(shardData)
 
         // We cheat a bit here - instead of finding the fully fledged service,
         // we just find the address and create a mock instance of the service, which
@@ -124,56 +151,63 @@ describe('mage-module-shard', function () {
         ({ modules, serviceDiscovery } = await createModuleInstances(5))
 
         const mod = modules[0]
+        const remoteModule = modules[4]
 
-        // Should be on node1
-        const shard = mod.createShard('test')
-        const address = mod.clusterAddressMap[shard.id]
-        const mmrpNode = modules
-          .map((m: any) => m.getMmrpNode())
-          .find((node: any) => {
-            console.log(address, node.identity)
-            return address[1] === node.identity
-          })
+        // Get shard data for node3, create a proxy on node1
+        const shardData = remoteModule.getLocalShard()
+        const shard = mod.getShard(shardData)
 
         // Close the remote node's connection, but don't announce it as down
-        mmrpNode.close()
+        remoteModule.getMmrpNode().close()
 
         await expectError('Request timed out', () => shard.methodWithNoArguments())
       })
 
       it('Non-exising calls throw', async function () {
-        const shard = await createShard('test')
+        const shard = await createShard()
         await expectError('shard.doesNotExist is not a function', () => (<any> shard).doesNotExist())
       })
 
       it('Remote errors are thrown locally', async function () {
-        const shard = await createShard('test')
+        const shard = await createShard()
         await expectError('I say what what', () => (<any> shard).throwsErrors())
       })
 
+      it('Local calls are not sent over network', async function () {
+        const mod = await getModule(5)
+        const shardData = mod.getLocalShard()
+        const shard = mod.getShard(shardData)
+
+        mod.addPendingRequest = () => { throw new Error('Request forwarded over network') }
+
+        const ret = await shard.methodWithNoArguments()
+
+        assert.equal(ret, 1)
+      })
+
       it('No  arguments', async function () {
-        const shard = await createShard('test')
+        const shard = await createShard()
         const ret = await shard.methodWithNoArguments()
 
         assert.equal(ret, 1)
       })
 
       it('Scalar arguments', async function () {
-        const shard = await createShard('test')
+        const shard = await createShard()
         const ret = await shard.methodWithScalarArguments('test', 3)
 
         assert.equal(ret, 'test,test,test')
       })
 
       it('Object arguments', async function () {
-        const shard = await createShard('test')
+        const shard = await createShard()
         const ret = await shard.methodWithObjectArguments('world', { hello: 'you'})
 
         assert.deepEqual(ret, { hello: 'world' })
       })
 
       it('Array arguments', async function () {
-        const shard = await createShard('test')
+        const shard = await createShard()
         const ret = await shard.methodWithArrayArguments('test', ['hello'])
 
         assert.deepEqual(ret, ['hello', 'test'])

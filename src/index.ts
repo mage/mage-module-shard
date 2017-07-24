@@ -263,6 +263,22 @@ export default abstract class AbstractShardedModule {
   private addressHashes: string[] = []
 
   /**
+   * The address hash for this local server
+   *
+   * This is used for two purposes:
+   *
+   *   1. Call directly methods locally if the shard points to the
+   *      local server
+   *
+   *   2. Allow for the creation of a shard reference that points to the
+   *      local server
+   *
+   * @type {string[]}
+   * @memberof AbstractShardedModule
+   */
+  private localNodeHash: string
+
+  /**
    * Hash to MMRP address key-value map
    *
    * @type {{ [hash: string]: string[] }}
@@ -400,12 +416,12 @@ export default abstract class AbstractShardedModule {
 
     // Service information tracking
     const service = this.service = this.getServiceDiscovery().createService(name, 'tcp')
+    const address = [(<any> mmrpNode).clusterId, (<any> mmrpNode).identity]
 
     service.on('up', (node: mage.core.IServiceNode) => this.registerNodeAddress(node))
     service.on('down', (node: mage.core.IServiceNode) => this.unregisterNodeAddress(node))
 
-
-    service.announce(this.getPseudoPort(), [(<any> mmrpNode).clusterId, (<any> mmrpNode).identity], (error?: Error) => {
+    service.announce(this.getPseudoPort(), address, (error?: Error) => {
       /* istanbul ignore if */
       if (error) {
         return callback(error)
@@ -415,6 +431,8 @@ export default abstract class AbstractShardedModule {
 
       callback()
     })
+
+    this.localNodeHash = this.hash(address.join(''))
   }
 
   /**
@@ -465,8 +483,14 @@ export default abstract class AbstractShardedModule {
         // Only functions are made available by the proxy
         const val = (<any> target)[name]
 
+        // Todo: add get/set request system?
         if (isFunction(val) !== true) {
-          return val // Todo: add get/set request system?
+          return val
+        }
+
+        // Do not send local requests over the network
+        if (id === this.localNodeHash) {
+          return val
         }
 
         // Encapsulate request
@@ -489,6 +513,19 @@ export default abstract class AbstractShardedModule {
         return ['id']
       }
     })
+  }
+
+  /**
+   * Retrieve the local shard value
+   *
+   * Useful when you wish to make it so that future requests
+   * be routed to the current local server.
+   *
+   * Note that this does NOT return a proxy; this returns just the forwardable
+   * data of a proxy.
+   */
+  public getLocalShard() {
+    return { id: this.localNodeHash }
   }
 
   /**
