@@ -444,11 +444,11 @@ export default abstract class AbstractShardedModule {
    */
   /* istanbul ignore next */
   public teardown(_state: mage.core.IState, callback: (error?: Error) => void) {
-    if (this.service) {
-      (<any> this.service).close()
+    if (!this.service) {
+      callback()
     }
 
-    callback()
+    (<any> this.service).close(callback)
   }
 
   /**
