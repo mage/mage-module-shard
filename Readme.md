@@ -52,7 +52,7 @@ export default new ShardedModule()
 
 This module works as follow:
 
-  1. Call `this.getShard(string)` to receive a proxy instance; all API calls
+  1. Call `this.createShard(string)` to receive a proxy instance; all API calls
      made on this proxy will always be forwarded to the same server
   2. **Keep this proxy around**: Normally, you will pass this to your game client(s)
   3. **Reuse the proxy data in future calls**: Game clients will send you back this data,
