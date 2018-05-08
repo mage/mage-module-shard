@@ -4,7 +4,7 @@ import * as events from 'events'
 import * as mage from 'mage'
 import AbstractShardedModule from '../src'
 
-const promisify = require('es6-promisify')
+const promisify = require('es6-promisify').promisify
 
 const {
   ServiceNode
@@ -110,10 +110,10 @@ async function meshNetwork(network: any) {
   })
 
   for (const client of network.clients) {
-    client.relayUp(createUri(network.relay.routerPort), network.relay.clusterId)
+    client.relayUp(createUri(network.relay.routerPort), network.relay)
   }
 
-  network.relay.relayUp(createUri(network.relay.routerPort), network.relay.clusterId)
+  network.relay.relayUp(createUri(network.relay.routerPort), network.relay)
 
   return promise
 }
@@ -208,7 +208,7 @@ export async function createModuleInstances(count: number) {
     // this will be what will trigger the timeout
     untypedModule.scheduleGarbageCollection(50)
 
-    const setup = promisify(module.setup, module)
+    const setup = promisify(module.setup.bind(module))
     await setup(new mage.core.State())
 
     modules[i] = module
