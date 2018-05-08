@@ -22,8 +22,7 @@ Please take note the following requirments:
 > lib/modules/sharded/index.ts
 
 ```typescript
-import {
-  AbstractShardedModule,
+import AbstractShardedModule, {
   IShard
 } from 'mage-module-shard'
 
