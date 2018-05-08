@@ -378,7 +378,7 @@ export default abstract class AbstractShardedModule {
     // See https://github.com/dylang/shortid#shortidworkerinteger
     /* istanbul ignore if */
     if (cluster.isWorker) {
-      const id = parseInt(cluster.worker.id, 10)
+      const id = cluster.worker.id
       shortid.worker(id % 16)
     }
 
