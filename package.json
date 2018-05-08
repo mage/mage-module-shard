@@ -1,6 +1,6 @@
 {
   "name": "mage-module-shard",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "Static data module, including a Google Spreadsheet add-on to manage exports and imports",
   "main": "./lib/index.js",
   "types": "./lib/index.d.ts",
@@ -73,6 +73,7 @@
     "@types/mocha": "5.2.0",
     "@types/node": "10.0.4",
     "is-function-x": "3.3.0",
+    "is-there": "4.4.3",
     "md5": "2.2.1",
     "serialize-error": "2.1.0",
     "shortid": "2.2.8"
