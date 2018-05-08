@@ -384,6 +384,10 @@ export default abstract class AbstractShardedModule {
 
     const mmrpNode = this.getMmrpNode()
 
+    if (!mmrpNode) {
+        return callback(new Error('mmrpNode does not exist. Did you configure mmrp and service discovery in your config file ?'))
+    }
+
     // Cluster communication - run module method locally, and forward the response
     mmrpNode.on(`delivery.${REQUEST_EVENT_NAME}`, async (requestEnvelope) => {
       const request = requestEnvelope.messages
