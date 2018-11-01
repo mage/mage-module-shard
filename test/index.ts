@@ -1,10 +1,15 @@
 /* tslint:disable:no-console */
 
+import * as config from 'mage/lib/config'
+config.set('logging.server.terminal.channels', 'error')
+
 import * as mage from 'mage'
 mage.core.logger.disableChannel('warning')
+mage.core.logger.disableChannel('notice')
 
 import * as assert from 'assert'
 import {
+  Shard,
   ShardedModule,
   createModuleInstances,
   destroyNetwork
@@ -19,17 +24,18 @@ describe('mage-module-shard', function () {
   // MAGE sets up uncaughtException hooks, we need to remove them!
   process.removeAllListeners()
 
+  before((callback) => (mage.core as any).loggingService.setup(callback))
   // destroy network
   afterEach(() => destroyNetwork(network))
 
   // Utility methods
-  async function getModule(numberOfNodes: number = 1) {
+  async function getModule(numberOfNodes: number = 1): Promise<ShardedModule> {
     ({ modules } = await createModuleInstances(numberOfNodes))
 
     return modules[0]
   }
 
-  async function createShard(numberOfNodes: number = 5): Promise<ShardedModule> {
+  async function createShard(numberOfNodes: number = 5): Promise<Shard> {
     await getModule(numberOfNodes)
 
     const mod = modules[0]
@@ -45,7 +51,7 @@ describe('mage-module-shard', function () {
     try {
       await call()
     } catch (error) {
-      assert.equal(error.message, message)
+      assert.strictEqual(error.message, message)
       return
     }
 
@@ -59,7 +65,7 @@ describe('mage-module-shard', function () {
     it('Allows to set a custom module name', function () {
       const mod = new ShardedModule('mymodule')
 
-      assert.equal(mod.name, 'mymodule')
+      assert.strictEqual(mod.name, 'mymodule')
     })
   })
 
@@ -71,7 +77,7 @@ describe('mage-module-shard', function () {
       ({ network, modules } = await createModuleInstances(2))
 
       for (const mod of modules) {
-        assert.equal(mod.clusterSize, 2)
+        assert.strictEqual(mod.clusterSize, 2)
       }
     })
 
@@ -81,7 +87,7 @@ describe('mage-module-shard', function () {
       const mod = modules[0]
       serviceDiscovery.emit('down', serviceDiscovery.services[1])
 
-      assert.equal(mod.clusterSize, 1)
+      assert.strictEqual(mod.clusterSize, 1)
     })
   })
 
@@ -93,7 +99,7 @@ describe('mage-module-shard', function () {
       const mod = await getModule()
       const shard = mod.getLocalShard()
 
-      assert.equal(shard.id, mod.localNodeHash)
+      assert.strictEqual(shard.id, (mod as any).localNodeHash)
     })
   })
 
@@ -174,7 +180,7 @@ describe('mage-module-shard', function () {
       })
 
       it('Local calls are not sent over network', async function () {
-        const mod = await getModule(5)
+        const mod = await getModule(5) as any
         const shardData = mod.getLocalShard()
         const shard = mod.getShard(shardData)
 
@@ -182,35 +188,42 @@ describe('mage-module-shard', function () {
 
         const ret = await shard.methodWithNoArguments()
 
-        assert.equal(ret, 1)
+        assert.strictEqual(ret, 1)
+      })
+
+      it('No  arguments', async function () {
+        const shard = await createShard()
+        const ret = await shard.attribute
+
+        assert.strictEqual(ret, 1)
       })
 
       it('No  arguments', async function () {
         const shard = await createShard()
         const ret = await shard.methodWithNoArguments()
 
-        assert.equal(ret, 1)
+        assert.strictEqual(ret, 1)
       })
 
       it('Scalar arguments', async function () {
         const shard = await createShard()
         const ret = await shard.methodWithScalarArguments('test', 3)
 
-        assert.equal(ret, 'test,test,test')
+        assert.strictEqual(ret, 'test,test,test')
       })
 
       it('Object arguments', async function () {
         const shard = await createShard()
         const ret = await shard.methodWithObjectArguments('world', { hello: 'you'})
 
-        assert.deepEqual(ret, { hello: 'world' })
+        assert.deepStrictEqual(ret, { hello: 'world' })
       })
 
       it('Array arguments', async function () {
         const shard = await createShard()
         const ret = await shard.methodWithArrayArguments('test', ['hello'])
 
-        assert.deepEqual(ret, ['hello', 'test'])
+        assert.deepStrictEqual(ret, ['hello', 'test'])
       })
     })
   })
@@ -227,7 +240,7 @@ describe('mage-module-shard', function () {
       const ret1 = await shard.getModuleId()
       const ret2 = await copy.getModuleId()
 
-      assert.equal(ret1, ret2)
+      assert.strictEqual(ret1, ret2)
     })
 
     it('Returns the same shard even if topology changed', async function () {
@@ -259,7 +272,7 @@ describe('mage-module-shard', function () {
       const ret1 = await shard.getModuleId()
       const ret2 = await copy.getModuleId()
 
-      assert.equal(ret1, ret2)
+      assert.strictEqual(ret1, ret2)
     })
   })
 
@@ -276,12 +289,12 @@ describe('mage-module-shard', function () {
     })
 
     it('Returns an IShard when serialized/deserialized (needed for sharing with remotes)', async function () {
-      assert.equal(JSON.stringify(shard), `{"id":"${shard.id}"}`)
+      assert.strictEqual(JSON.stringify(shard), `{"id":"${shard.id}"}`)
     })
 
     it('Object.getOwnPropertyNames', function () {
-      assert.deepEqual(Object.getOwnPropertyNames(shard), ['id'])
-      // assert.deepEqual(Object.keys(shard), ['id']) // This does not work :(
+      assert.deepStrictEqual(Object.getOwnPropertyNames(shard), ['id'])
+      // assert.deepStrictEqual(Object.keys(shard), ['id']) // This does not work :(
     })
 
     it('in operator', function () {
@@ -289,7 +302,81 @@ describe('mage-module-shard', function () {
     })
 
     it ('inspect (for util.inspect, REPL, etc)', function () {
-      assert.deepEqual(shard.inspect(), { id: shard.id })
+      assert.deepStrictEqual(shard.inspect(), { id: shard.id })
+    })
+  })
+
+  describe('createBroadcast', function () {
+    it('can broadcast to all modules', async function () {
+      const nodeCount = 3
+      const mod = await getModule(nodeCount)
+      const broadcast = mod.createBroadcast()
+      const [errors, responses] = await broadcast.methodWithScalarArguments('test', 1)
+      const values = Object.values(responses)
+
+      assert.strictEqual(errors, null)
+      assert.strictEqual(values.length, nodeCount)
+
+      for (const response of values) {
+        assert.strictEqual(response, 'test')
+      }
+    })
+
+    it('can retrieve attributes on all modules', async function () {
+      const nodeCount = 3
+      const { modules: mods } = await createModuleInstances(nodeCount)
+      for (const [pos, mod] of mods.entries()) {
+        mod.attribute = pos
+      }
+
+      const broadcast = mods[0].createBroadcast()
+      const [errors, responses] = await broadcast.attribute
+      const values = Object.values(responses)
+
+      assert.strictEqual(errors, null)
+      assert.strictEqual(values.length, nodeCount)
+
+      for (const { attribute, localNodeHash: id } of mods as any) {
+        assert.strictEqual(attribute, responses[id])
+      }
+    })
+
+    it('errors are returned in an object', async function () {
+      const nodeCount = 3
+      const { modules: [mod, remoteMod] } = await createModuleInstances(nodeCount)
+      remoteMod.throws = true
+
+      const broadcast = mod.createBroadcast()
+      const [errors, responses] = await broadcast.methodThatThrows('test')
+
+      const [error] = Object.values(errors)
+      const values = Object.values(responses)
+
+      assert.strictEqual(error.message, `I don't like you`)
+      assert.strictEqual(values.length, nodeCount - 1)
+
+      for (const response of values) {
+        assert.strictEqual(response, 'test')
+      }
+    })
+
+    it('error when fetching attribute values are properly managed', async function () {
+      const nodeCount = 3
+      const { modules: [mod, remoteMod] } = await createModuleInstances(nodeCount)
+      remoteMod.throws = true
+
+      const broadcast = mod.createBroadcast()
+      const [errors, responses] = await broadcast.mightThrow
+
+      const [error] = Object.values(errors)
+      const values = Object.values(responses)
+
+      assert.strictEqual(error.message, `I don't like you`)
+      assert.strictEqual(values.length, nodeCount - 1)
+
+      for (const response of values) {
+        assert.strictEqual(response, 1)
+      }
     })
   })
 
@@ -306,10 +393,6 @@ describe('mage-module-shard', function () {
     describe('onRequest', function () {
       it('throws if the method name is missing', async function () {
         await expectError('Method name is missing', () => mod.onRequest([]))
-      })
-
-      it('throws if args are missing', async function () {
-        await expectError('Arguments are missing', () => mod.onRequest(['getModuleId']))
       })
 
       it('throws if the method is not found', async function () {

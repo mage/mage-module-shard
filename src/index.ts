@@ -17,6 +17,42 @@ const shortid = require('shortid')
  */
 type MmrpEnvelopeMessage = string | Buffer
 
+
+/**
+ * Method return type extraction
+ */
+type ReturnType<T> = T extends (...args: any[]) => infer R ? R : never
+
+/**
+ * Shard module attribute mapping
+ */
+type ShardAttribute<T, R> =
+  T extends (...args: infer P) => Promise<R> ? (...args: P) => Promise<R> :
+  T extends (...args: infer P) => R ? (...args: P) => Promise<R> :
+  Promise<T>
+
+/**
+ * Shard proxy type returned with module.createShard()
+ */
+export type Shard<T extends AbstractShardedModule> = IShard & {
+  readonly [A in keyof T]: ShardAttribute<T[A], ReturnType<T[A]>>
+}
+
+/**
+ * Broadcast module attribute mapping
+ */
+type BroadcastAttribute<T, R> =
+  T extends (...args: infer P) => Promise<R> ? (...args: P) => Promise<[Error[], R[]]> :
+  T extends (...args: infer P) => R ? (...args: P) => Promise<[Error[], R[]]> :
+  Promise<[Error[], T[]]>
+
+/**
+ * Broadcast proxy type returned with module.createBroadcast()
+ */
+export type Broadcast<T extends AbstractShardedModule> = {
+  readonly [A in keyof T]: BroadcastAttribute<T[A], ReturnType<T[A]>>
+}
+
 /**
  * IShardedRequestMeta
  *
@@ -112,7 +148,7 @@ export class ShardedRequest {
    * @type {any[]}
    * @memberof ShardedRequest
    */
-  public args: any[]
+  public args?: any[]
 
   /**
    * Resolve function (see `send`)
@@ -128,7 +164,7 @@ export class ShardedRequest {
    */
   public reject: (error: Error) => void
 
-  constructor(id: string, mmrpNode: any, eventName: string, target: string[], method: string, args: any[]) {
+  constructor(id: string, mmrpNode: any, eventName: string, target: string[], method: string, args?: any[]) {
     this.id = id
     this.mmrpNode = mmrpNode
     this.eventName = eventName
@@ -384,8 +420,9 @@ export default abstract class AbstractShardedModule {
 
     const mmrpNode = this.getMmrpNode()
 
+    /* istanbul ignore if */
     if (!mmrpNode) {
-        return callback(new Error('mmrpNode does not exist. Did you configure mmrp and service discovery in your config file ?'))
+      return callback(new Error('mmrpNode does not exist. Did you configure mmrp and service discovery in your config file ?'))
     }
 
     // Cluster communication - run module method locally, and forward the response
@@ -460,7 +497,7 @@ export default abstract class AbstractShardedModule {
    *
    * @param {IShard} shard
    */
-  public getShard(shard: IShard) {
+  public getShard(shard: IShard): Shard<this> {
     const { id } = shard
     const address = this.clusterAddressMap[id]
     const toJson = function () {
@@ -487,27 +524,24 @@ export default abstract class AbstractShardedModule {
         // Only functions are made available by the proxy
         const val = (<any> target)[name]
 
-        // Todo: add get/set request system?
         if (isFunction(val) !== true) {
-          return val
-        }
+          // Do not send local requests over the network
+          if (id === this.localNodeHash) {
+            return Promise.resolve(val)
+          }
 
-        // Do not send local requests over the network
-        if (id === this.localNodeHash) {
-          return val
+          this.assertClusterId(id)
+          return this.addPendingRequest(address, name).send()
         }
 
         // Encapsulate request
         return async (...args: any[]) => {
-          if (!this.clusterAddressMap[id]) {
-            throw new RemoteError({
-              message: 'Remote node is no longer available'
-            })
+          if (id === this.localNodeHash) {
+            return val.bind(this)(...args)
           }
 
-          const request = this.addPendingRequest(address, name, args)
-
-          return request.send()
+          this.assertClusterId(id)
+          return this.addPendingRequest(address, name, args).send()
         }
       },
       has(_target: any, key: string) {
@@ -516,7 +550,70 @@ export default abstract class AbstractShardedModule {
       ownKeys() {
         return ['id']
       }
-    })
+    }) as any
+  }
+
+  /**
+   * Retrieve a shard using a deserialized shard instance (IShard)
+   *
+   *
+   */
+  public createBroadcast(): Broadcast<this> {
+    return new Proxy<this>(this, {
+      get: (target: AbstractShardedModule, name: string) => {
+        const val = (<any> target)[name]
+        const hashes = Object.keys(this.clusterAddressMap)
+
+        const promises: Array<Promise<any>> = []
+        const responses: { [key: string]: any } = {}
+        const errors: { [key: string]: Error } = {}
+
+        const data = async () => {
+          await Promise.all(promises)
+
+          if (Object.keys(errors).length > 0) {
+            return [errors, responses]
+          } else {
+            return [null, responses]
+          }
+        }
+
+        if (isFunction(val) !== true) {
+          for (const id of hashes) {
+            const shard = target.getShard({ id }) as any
+            const promise = shard[name]
+              .then((response: any) => responses[id] = response)
+              .catch((error: Error) => errors[id] = error)
+
+            promises.push(promise)
+          }
+
+          return data()
+        }
+
+        // Encapsulate request
+        return async (...args: any[]) => {
+          for (const id of hashes) {
+            const shard = target.getShard({ id }) as any
+            const promise = shard[name](...args)
+              .then((response: any) => responses[id] = response)
+              .catch((error: Error) => errors[id] = error)
+
+            promises.push(promise)
+          }
+
+          return data()
+        }
+      },
+      /* istanbul ignore next */
+      has(_target: any, _key: string) {
+        return false
+      },
+      /* istanbul ignore next */
+      ownKeys() {
+        return []
+      }
+    }) as any
   }
 
   /**
@@ -557,7 +654,7 @@ export default abstract class AbstractShardedModule {
 
     // Fastest way I could find to walk through the Buffer
     // See: https://stackoverflow.com/a/3762735/262831
-    for (let i = hash.length; i--; ) {
+    for (let i = hash.length; i--;) {
       sum += hash[i]
     }
 
@@ -679,6 +776,8 @@ export default abstract class AbstractShardedModule {
     this.logger.notice.data(node).log('Registering new node')
 
     // Add adress to our map
+
+    // これではなかろうか
     this.clusterAddressMap[hash] = address
 
     // Add hash to our list of accessible addresses
@@ -727,23 +826,23 @@ export default abstract class AbstractShardedModule {
    * @memberof AbstractShardedModule
    */
   private async onRequest(messages: MmrpEnvelopeMessage[]) {
-    const rawMethodName = messages.shift()
+    const rawAttributeName = messages.shift()
     const rawArgs = messages.shift()
 
-    if (!rawMethodName) {
+    if (!rawAttributeName) {
       throw new Error('Method name is missing')
     }
 
+    const attributeName = rawAttributeName.toString()
     if (!rawArgs) {
-      throw new Error('Arguments are missing')
+      return (this as any)[attributeName]
     }
 
-    const methodName = rawMethodName.toString()
-    const method: (...args: any[]) => any = (<any> this)[methodName]
+    const method: (...args: any[]) => any = (<any> this)[attributeName]
     const args = JSON.parse(rawArgs.toString())
 
     if (!method) {
-      throw new Error(`Method is not locally available (requested method: ${methodName})`)
+      throw new Error(`Method is not locally available (requested method: ${attributeName})`)
     }
 
     return method.apply(this, args)
@@ -789,7 +888,7 @@ export default abstract class AbstractShardedModule {
    * @returns
    * @memberof AbstractShardedModule
    */
-  private addPendingRequest(target: string[], method: string, args: any[]) {
+  private addPendingRequest(target: string[], method: string, args?: any[]) {
     const id = shortid.generate()
     const timestamp = Date.now()
 
@@ -861,5 +960,18 @@ export default abstract class AbstractShardedModule {
     this.deletePendingRequest(id)
 
     return request
+  }
+
+  /**
+   * Ensure that we know this cluster ID
+   *
+   * @param id
+   */
+  private assertClusterId(id: string) {
+    if (!this.clusterAddressMap[id]) {
+      throw new RemoteError({
+        message: 'Remote node is no longer available'
+      })
+    }
   }
 }

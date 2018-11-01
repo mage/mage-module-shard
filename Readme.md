@@ -15,10 +15,9 @@ Usage
 
 Please take note the following requirments:
 
-  1. All forwardable methods **must** be `async` functions
-  2. Methods on objects will **not** be set on the remote node; you
-     should stick to sending only data objects
- 
+1. Methods on objects will **not** be set on the remote node; you
+    should stick to sending only data objects
+
 > lib/modules/sharded/index.ts
 
 ```typescript
@@ -41,7 +40,19 @@ class ShardedModule extends AbstractShardedModule {
       return { shard, val }
     }
 
-    public async willRunRemotely(state: mage.core.IState) {
+    public async sendToAll(state: mage.core.IState) {
+      const broadcast = this.createBroadcast()
+      const [errors, values] = await broadcast.willRunRemotely(state)
+
+      if (errors) {
+        throw new Error('failed')
+      }
+
+      // A map of hash id to values is returned
+      return Object.values(values)
+    }
+
+    public willRunRemotely(state: mage.core.IState) {
       return 1
     }
 }
@@ -60,8 +71,9 @@ This module works as follow:
 Todo
 ----
 
-  - [ ] limit: only let a limited number of nodes run this module
-  - [ ] broadcast: send a call to all nodes in the cluster and receive an array of responses
+- [x] broadcast: send a call to all nodes in the cluster and receive an array of responses
+- [ ] set attributes over shard/broadcasts
+- [ ] limit: only let a limited number of nodes run this module
 
 License
 -------

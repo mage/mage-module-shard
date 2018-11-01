@@ -2,7 +2,7 @@
 /* tslint:disable:prefer-function-over-method */
 import * as events from 'events'
 import * as mage from 'mage'
-import AbstractShardedModule from '../src'
+import AbstractShardedModule, { Broadcast, Shard } from '../src'
 
 const promisify = require('es6-promisify').promisify
 
@@ -135,33 +135,52 @@ export function destroyNetwork(network: any) {
  * Test module
  */
 export class ShardedModule extends AbstractShardedModule {
+  public attribute = 1
+  public throws = false
+
+  get mightThrow() {
+    if (this.throws) {
+      throw new Error(`I don't like you`)
+    }
+
+    return this.attribute
+  }
+
   public throwsErrors() {
     throw new Error('I say what what')
   }
 
-  public async methodWithNoArguments() {
-    return '1'
+  public methodWithNoArguments() {
+    return 1
   }
 
-  public async methodWithScalarArguments(a: string, b: number) {
+  public methodWithScalarArguments(a: string, b: number) {
     const list = new Array(b)
 
     return list.fill(a).join(',')
   }
 
-  public async methodWithObjectArguments(a: string, b: any) {
+  public methodThatThrows(a: string) {
+    if (this.throws) {
+      throw new Error(`I don't like you`)
+    }
+
+    return a
+  }
+
+  public methodWithObjectArguments(a: string, b: any) {
     b.hello = a
 
     return b
   }
 
-  public async methodWithArrayArguments(a: string, b: string[]) {
+  public methodWithArrayArguments(a: string, b: string[]) {
     b.push(a)
 
     return b
   }
 
-  public async getModuleId(this: any) {
+  public getModuleId(this: any) {
     return this.getMmrpNode().identity
   }
 }
@@ -175,7 +194,7 @@ export class ShardedModule extends AbstractShardedModule {
  */
 export async function createModuleInstances(count: number) {
   const network = createNetwork(count)
-  const modules = new Array(count)
+  const modules: ShardedModule[] = new Array(count)
   const serviceDiscovery =  new TestDiscovery('whatever', 'tcp')
 
   for (let i = 0; i < count; i += 1) {
@@ -222,3 +241,13 @@ export async function createModuleInstances(count: number) {
     serviceDiscovery
   }
 }
+
+/**
+ * Shard type for ShardedModule
+ */
+export type Shard = Shard<ShardedModule>
+
+/**
+ * Broadcast type for ShardedModule
+ */
+export type Broadcast = Broadcast<ShardedModule>
