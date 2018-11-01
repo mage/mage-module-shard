@@ -17,7 +17,6 @@ const shortid = require('shortid')
  */
 type MmrpEnvelopeMessage = string | Buffer
 
-
 /**
  * Shard module attribute mapping
  */
@@ -34,12 +33,19 @@ export type Shard<T extends AbstractShardedModule> = IShard & {
 }
 
 /**
+ * Responses for broadcast
+ */
+export interface IHashMap<T> {
+  [key: string]: T
+}
+
+/**
  * Broadcast module attribute mapping
  */
 export type BroadcastAttribute<T> =
-  T extends (...args: infer P) => Promise<infer S> ? (...args: P) => Promise<[Error[], S[]]> :
-  T extends (...args: infer P) => infer R ? (...args: P) => Promise<[Error[], R[]]> :
-  Promise<[Error[], T[]]>
+  T extends (...args: infer P) => Promise<infer S> ? (...args: P) => Promise<[IHashMap<Error>, IHashMap<S>]> :
+  T extends (...args: infer P) => infer R ? (...args: P) => Promise<[IHashMap<Error>, IHashMap<R>]> :
+  Promise<[IHashMap<Error>, IHashMap<T>]>
 
 /**
  * Broadcast proxy type returned with module.createBroadcast()
