@@ -385,13 +385,13 @@ export default abstract class AbstractShardedModule {
     const mmrpNode = this.getMmrpNode()
 
     if (!mmrpNode) {
-        return callback(new Error('mmrpNode does not exist. Did you configure mmrp and service discovery in your config file ?'))
+      return callback(new Error('mmrpNode does not exist. Did you configure mmrp and service discovery in your config file ?'))
     }
 
     // Cluster communication - run module method locally, and forward the response
     mmrpNode.on(`delivery.${REQUEST_EVENT_NAME}`, async (requestEnvelope) => {
       const request = requestEnvelope.messages
-      const requestId = (<any> request.shift()).toString()
+      const requestId = (<any>request.shift()).toString()
 
       let responseError
       let responseData
@@ -420,7 +420,7 @@ export default abstract class AbstractShardedModule {
 
     // Service information tracking
     const service = this.service = this.getServiceDiscovery().createService(name, 'tcp')
-    const address = [(<any> mmrpNode).clusterId, (<any> mmrpNode).identity]
+    const address = [(<any>mmrpNode).clusterId, (<any>mmrpNode).identity]
 
     service.on('up', (node: mage.core.IServiceNode) => this.registerNodeAddress(node))
     service.on('down', (node: mage.core.IServiceNode) => this.unregisterNodeAddress(node))
@@ -452,7 +452,7 @@ export default abstract class AbstractShardedModule {
       callback()
     }
 
-    (<any> this.service).close(callback)
+    (<any>this.service).close(callback)
   }
 
   /**
@@ -485,7 +485,7 @@ export default abstract class AbstractShardedModule {
         }
 
         // Only functions are made available by the proxy
-        const val = (<any> target)[name]
+        const val = (<any>target)[name]
 
         // Todo: add get/set request system?
         if (isFunction(val) !== true) {
@@ -515,6 +515,56 @@ export default abstract class AbstractShardedModule {
       },
       ownKeys() {
         return ['id']
+      }
+    })
+  }
+
+  /**
+   * Retrieve a shard using a deserialized shard instance (IShard)
+   *
+   *
+   */
+  public createBroadcast() {
+    return new Proxy<this>(this, {
+      get: (target: AbstractShardedModule, name: string) => {
+        // Only functions are made available by the proxy
+        const val = (<any>target)[name]
+        const hashes = Object.keys(this.clusterAddressMap)
+
+        // Todo: add get/set request system?
+        if (isFunction(val) !== true) {
+          return [null, Array(hashes.length).fill(val)]
+        }
+
+        // Encapsulate request
+        return async (...args: any[]) => {
+          const promises = []
+          const responses: { [key: string]: any } = {}
+          const errors: { [key: string]: Error } = {}
+
+          for (const id of hashes) {
+            const shard = target.getShard({ id }) as any
+            const promise = shard[name](...args)
+              .then((response: any) => responses[id] = response)
+              .catch((error: Error) => errors[id] = error)
+
+            promises.push(promise)
+          }
+
+          await Promise.all(promises)
+
+          if (Object.keys(errors).length > 0) {
+            return [errors, responses]
+          } else {
+            return [null, responses]
+          }
+        }
+      },
+      has(_target: any, _key: string) {
+        return false
+      },
+      ownKeys() {
+        return []
       }
     })
   }
@@ -552,12 +602,12 @@ export default abstract class AbstractShardedModule {
    * @param {string} shardKey
    */
   protected getShardId(shardKey: string) {
-    const hash: Buffer = (<any> this).hash(shardKey, 'buffer')
+    const hash: Buffer = (<any>this).hash(shardKey, 'buffer')
     let sum = 0
 
     // Fastest way I could find to walk through the Buffer
     // See: https://stackoverflow.com/a/3762735/262831
-    for (let i = hash.length; i--; ) {
+    for (let i = hash.length; i--;) {
       sum += hash[i]
     }
 
@@ -574,7 +624,7 @@ export default abstract class AbstractShardedModule {
    * @param str
    */
   private hash(str: string, encoding: string = 'hex') {
-    return crypto.createHash(this.hashingAlgorithm).update(str).digest(<any> encoding)
+    return crypto.createHash(this.hashingAlgorithm).update(str).digest(<any>encoding)
   }
 
   /* istanbul ignore next */
@@ -679,6 +729,8 @@ export default abstract class AbstractShardedModule {
     this.logger.notice.data(node).log('Registering new node')
 
     // Add adress to our map
+
+    // これではなかろうか
     this.clusterAddressMap[hash] = address
 
     // Add hash to our list of accessible addresses
@@ -739,7 +791,7 @@ export default abstract class AbstractShardedModule {
     }
 
     const methodName = rawMethodName.toString()
-    const method: (...args: any[]) => any = (<any> this)[methodName]
+    const method: (...args: any[]) => any = (<any>this)[methodName]
     const args = JSON.parse(rawArgs.toString())
 
     if (!method) {

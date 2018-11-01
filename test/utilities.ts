@@ -149,6 +149,18 @@ export class ShardedModule extends AbstractShardedModule {
     return list.fill(a).join(',')
   }
 
+  public async methodThatThrowsLocally(a: string) {
+    const { stack } = new Error() as any
+    const lines = stack.split('\n')
+
+    // Throw if the call was local
+    if (lines[1].indexOf('at Proxy.methodThatThrowsLocally') !== -1) {
+      throw new Error(`I don't like you`)
+    }
+
+    return a
+  }
+
   public async methodWithObjectArguments(a: string, b: any) {
     b.hello = a
 

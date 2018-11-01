@@ -293,6 +293,41 @@ describe('mage-module-shard', function () {
     })
   })
 
+  describe('createBroadcast', function () {
+    it('can broadcast to all modules', async function () {
+      const nodeCount = 3
+      const mod = await getModule(nodeCount)
+      const broadcast = mod.createBroadcast()
+      const [errors, responses] = await broadcast.methodWithScalarArguments('test', 1)
+      const values = Object.values(responses)
+      console.log(responses, values)
+
+      assert.strictEqual(errors, null)
+      assert.strictEqual(values.length, nodeCount)
+
+      for (const response of values) {
+        assert.strictEqual(response, 'test')
+      }
+    })
+
+    it('errors are returned in an object', async function () {
+      const nodeCount = 3
+      const mod = await getModule(nodeCount)
+      const broadcast = mod.createBroadcast()
+      const [errors, responses] = await broadcast.methodThatThrowsLocally('test')
+
+      const [error] = Object.values(errors)
+      const values = Object.values(responses)
+
+      assert.strictEqual(error.message, `I don't like you`)
+      assert.strictEqual(values.length, nodeCount - 1)
+
+      for (const response of values) {
+        assert.strictEqual(response, 'test')
+      }
+    })
+  })
+
   /**
    * Internal error handling and checks
    */
