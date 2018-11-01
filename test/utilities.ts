@@ -186,6 +186,11 @@ export class ShardedModule extends AbstractShardedModule {
     return a
   }
 
+  public async methodWithNoReturn(a: number) {
+    this.attribute = a
+  }
+
+
   public getModuleId(this: any) {
     return this.getMmrpNode().identity
   }

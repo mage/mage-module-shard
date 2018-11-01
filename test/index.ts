@@ -232,6 +232,13 @@ describe('mage-module-shard', function () {
 
         assert.deepStrictEqual(ret, 'test')
       })
+
+      it('No return', async function () {
+        const shard = await createShard()
+        const ret = await shard.methodWithNoReturn(1)
+
+        assert.deepStrictEqual(ret, undefined)
+      })
     })
   })
 

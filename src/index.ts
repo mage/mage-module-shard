@@ -19,38 +19,33 @@ type MmrpEnvelopeMessage = string | Buffer
 
 
 /**
- * Method return type extraction
- */
-type ReturnType<T> = T extends (...args: any[]) => infer R ? R : never
-
-/**
  * Shard module attribute mapping
  */
-type ShardAttribute<T, R> =
-  T extends (...args: infer P) => Promise<any> ? (...args: P) => R :
-  T extends (...args: infer P) => R ? (...args: P) => Promise<R> :
+export type ShardAttribute<T> =
+  T extends (...args: infer P) => Promise<infer R> ? (...args: P) => Promise<R> :
+  T extends (...args: infer P) => infer R ? (...args: P) => Promise<R> :
   Promise<T>
 
 /**
  * Shard proxy type returned with module.createShard()
  */
 export type Shard<T extends AbstractShardedModule> = IShard & {
-  readonly [A in keyof T]: ShardAttribute<T[A], ReturnType<T[A]>>
+  readonly [A in keyof T]: ShardAttribute<T[A]>
 }
 
 /**
  * Broadcast module attribute mapping
  */
-type BroadcastAttribute<T, R> =
+export type BroadcastAttribute<T> =
   T extends (...args: infer P) => Promise<infer S> ? (...args: P) => Promise<[Error[], S[]]> :
-  T extends (...args: infer P) => R ? (...args: P) => Promise<[Error[], R[]]> :
+  T extends (...args: infer P) => infer R ? (...args: P) => Promise<[Error[], R[]]> :
   Promise<[Error[], T[]]>
 
 /**
  * Broadcast proxy type returned with module.createBroadcast()
  */
 export type Broadcast<T extends AbstractShardedModule> = {
-  readonly [A in keyof T]: BroadcastAttribute<T[A], ReturnType<T[A]>>
+  readonly [A in keyof T]: BroadcastAttribute<T[A]>
 }
 
 /**
@@ -439,7 +434,7 @@ export default abstract class AbstractShardedModule {
         responseError = e
       } finally {
         const Envelope = msgServer.mmrp.Envelope
-        const response = responseData ? JSON.stringify(responseData) : 'false'
+        const response = responseError ? 'false' : JSON.stringify(responseData)
         const error = responseError ? serializeError(responseError) : 'false'
         const messages = [requestId, response, error]
         const responseEnvelope = new Envelope(this.RESPONSE_EVENT_NAME, messages, requestEnvelope.returnRoute)
@@ -864,6 +859,11 @@ export default abstract class AbstractShardedModule {
     ] = messages
 
     const request = this.getAndDeletePendingRequest(requestId.toString())
+
+    // For void methods (no return, or undefined attributes)
+    if (messages.length < 3) {
+      return request.resolve(undefined)
+    }
 
     if (rawError && rawError.toString() !== 'false') {
       const data = JSON.parse(rawError.toString())

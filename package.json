@@ -1,6 +1,6 @@
 {
   "name": "mage-module-shard",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Server-side sharding and broadcasting module for MAGE apps.",
   "main": "./lib/index.js",
   "types": "./lib/index.d.ts",
