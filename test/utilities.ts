@@ -180,6 +180,12 @@ export class ShardedModule extends AbstractShardedModule {
     return b
   }
 
+  public async methodWithAsync(a: string) {
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    return a
+  }
+
   public getModuleId(this: any) {
     return this.getMmrpNode().identity
   }

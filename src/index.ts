@@ -27,7 +27,7 @@ type ReturnType<T> = T extends (...args: any[]) => infer R ? R : never
  * Shard module attribute mapping
  */
 type ShardAttribute<T, R> =
-  T extends (...args: infer P) => Promise<R> ? (...args: P) => Promise<R> :
+  T extends (...args: infer P) => Promise<any> ? (...args: P) => R :
   T extends (...args: infer P) => R ? (...args: P) => Promise<R> :
   Promise<T>
 
@@ -42,7 +42,7 @@ export type Shard<T extends AbstractShardedModule> = IShard & {
  * Broadcast module attribute mapping
  */
 type BroadcastAttribute<T, R> =
-  T extends (...args: infer P) => Promise<R> ? (...args: P) => Promise<[Error[], R[]]> :
+  T extends (...args: infer P) => Promise<infer S> ? (...args: P) => Promise<[Error[], S[]]> :
   T extends (...args: infer P) => R ? (...args: P) => Promise<[Error[], R[]]> :
   Promise<[Error[], T[]]>
 

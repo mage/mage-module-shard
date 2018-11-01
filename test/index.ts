@@ -225,6 +225,13 @@ describe('mage-module-shard', function () {
 
         assert.deepStrictEqual(ret, ['hello', 'test'])
       })
+
+      it('Promises', async function () {
+        const shard = await createShard()
+        const ret = await shard.methodWithAsync('test')
+
+        assert.deepStrictEqual(ret, 'test')
+      })
     })
   })
 
